@@ -1,0 +1,26 @@
+# Now Playing (Spotify wall display for the iPad Air 2), a rootless Podman container
+# run by systemd (Quadlet). tools/deploy.sh copies this to ~/.config/containers/systemd/.
+[Unit]
+Description=Now Playing (Spotify display for the iPad Air 2)
+Wants=network-online.target
+After=network-online.target
+
+[Container]
+Image=localhost/now-playing:latest
+ContainerName=now-playing
+PublishPort=8092:8092
+UserNS=keep-id
+RunInit=true
+# NP_CLIENT_ID=<your Spotify developer app's client id> (PKCE, no secret) lives in this file.
+EnvironmentFile=%h/.config/now-playing/env
+# ~/.config/now-playing holds the sp_dc cookie (chmod 600) and the sign-in browser profile.
+Volume=%h/.config/now-playing:/config:Z
+StopTimeout=5
+
+[Service]
+Restart=always
+RestartSec=5
+TimeoutStartSec=120
+
+[Install]
+WantedBy=default.target

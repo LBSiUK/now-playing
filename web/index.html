@@ -1,0 +1,1194 @@
+<title>Air 2 Now Playing</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<style>
+@font-face { font-family: "SpotifyMixUI"; font-weight: 400; font-display: swap; src: url("fonts/SpotifyMixUI-Regular.woff2") format("woff2"); }
+@font-face { font-family: "SpotifyMixUI"; font-weight: 700; font-display: swap; src: url("fonts/SpotifyMixUI-Bold.woff2") format("woff2"); }
+@font-face { font-family: "SpotifyMixUITitle"; font-weight: 700; font-display: swap; src: url("fonts/SpotifyMixUITitle-Bold.woff2") format("woff2"); }
+@font-face { font-family: "SpotifyMixUITitle"; font-weight: 800; font-display: swap; src: url("fonts/SpotifyMixUITitle-Extrabold.woff2") format("woff2"); }
+
+/* Layout: a review page around one scaled iPad screen. The screen is built at its
+   real size in points (1024x768 landscape, 768x1024 portrait) and scaled to fit. */
+:root {
+  color-scheme: dark;
+  --page: #121212;
+  --panel: #1f1f1f;
+  --rule: #2e2e2e;
+  --ink: #ffffff;
+  --ink-2: #b3b3b3;
+  --ground: #0b0b0b;
+  --bezel: #1c1c1c;
+  --green: #1ed760;
+  --ly-rgb: 178, 44, 98;
+  --ly-text-rgb: 0, 0, 0;
+  --ly-hi-rgb: 255, 255, 255;
+  --ui: "SpotifyMixUI", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --title: "SpotifyMixUITitle", "SpotifyMixUI", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --ease-out: cubic-bezier(0.2, 0.75, 0.15, 1);
+}
+html, body { background: var(--page); color: var(--ink); }
+body {
+  font-family: var(--ui);
+  font-size: 15px;
+  line-height: 1.5;
+  padding-block: 28px 40px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+::selection { background: var(--green); color: #000; }
+
+.page { max-width: 1180px; margin: 0 auto; display: grid; gap: 20px; }
+.intro { display: grid; gap: 6px; max-width: 70ch; }
+.intro h1 { margin: 0; font-family: var(--title); font-size: 30px; line-height: 1.1; font-weight: 800; letter-spacing: -0.01em; }
+.intro p { margin: 0; color: var(--ink-2); }
+
+/* Device stage */
+.stage-wrap { display: flex; justify-content: center; min-width: 0; }
+.stage { position: relative; }
+.device {
+  --w: 1024px; --h: 768px; --b: 26px;
+  position: absolute; left: 0; top: 0;
+  box-sizing: border-box;
+  width: calc(var(--w) + 2 * var(--b));
+  height: calc(var(--h) + 2 * var(--b));
+  padding: var(--b);
+  border-radius: 46px;
+  background: var(--bezel);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.07), 0 40px 80px -30px rgba(0,0,0,0.8);
+  transform-origin: 0 0;
+}
+.device.port { --w: 768px; --h: 1024px; }
+
+/* ---------- The iPad screen ---------- */
+.screen {
+  position: relative;
+  width: var(--w); height: var(--h);
+  overflow: hidden;
+  border-radius: 6px;
+  background: var(--ground);
+  color: #fff;
+  font-family: var(--ui);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  outline: none;
+}
+.screen:focus-visible { box-shadow: 0 0 0 4px var(--green); }
+.layer { position: absolute; inset: 0; transition: opacity 0.7s ease; }
+.screen[data-view="lyrics"] .layer-artist,
+.screen[data-view="artist"] .layer-lyrics { opacity: 0; }
+
+/* View 1: artist banner */
+.banner {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: cover; object-position: 50% 30%;
+  animation: drift 46s ease-in-out infinite alternate;
+}
+.screen[data-view="lyrics"] .banner { animation-play-state: paused; }
+@keyframes drift {
+  from { transform: scale(1.03) translate3d(0, 0, 0); }
+  to { transform: scale(1.09) translate3d(-1.4%, -0.8%, 0); }
+}
+.shade-artist {
+  position: absolute; inset: 0;
+  background:
+    linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.6) 27%, rgba(0,0,0,0) 58%),
+    linear-gradient(to right, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0) 45%);
+}
+
+/* View 2: slowly drifting gradients in the song's colours, the canvas on the right (in
+   portrait, behind). The gradients are two tiny images (about 40x30 px) that the
+   compositor stretches and moves; nothing is redrawn while they drift. */
+.layer-lyrics { background: rgb(var(--ly-rgb)); }
+.aura { position: absolute; inset: 0; overflow: hidden; }
+.aura img {
+  position: absolute; left: -35%; top: -35%; width: 170%; height: 170%; max-width: none;
+  will-change: transform;
+}
+.aura img + img { opacity: 0.6; }
+#auraA { animation: auraA 34s ease-in-out infinite alternate; }
+#auraB { animation: auraB 47s ease-in-out infinite alternate; }
+@keyframes auraA { from { transform: translate3d(-6%, -4%, 0) rotate(-8deg); } to { transform: translate3d(6%, 5%, 0) rotate(10deg) scale(1.08); } }
+@keyframes auraB { from { transform: translate3d(5%, 6%, 0) rotate(12deg) scale(1.1); } to { transform: translate3d(-5%, -6%, 0) rotate(-6deg); } }
+.screen[data-view="artist"] .aura img { animation-play-state: paused; }
+.port .aura { display: none; }
+.canvas-video {
+  position: absolute; top: 0; right: 0; width: 432px; height: 100%;
+  object-fit: cover; background: #000;
+  box-shadow: -40px 0 80px rgba(0,0,0,0.3);
+}
+.shade-over { position: absolute; inset: 0; display: none; }
+.port .canvas-video { width: 100%; box-shadow: none; }
+.port .shade-over {
+  display: block;
+  background: linear-gradient(to bottom, rgb(var(--ly-rgb)) 0%, rgb(var(--ly-rgb)) 62%, rgba(var(--ly-rgb), 0) 76%, rgba(0,0,0,0.55) 100%);
+}
+.screen[data-canvas="off"] .canvas-video,
+.screen[data-canvas="off"] .shade-over { display: none; }
+
+/* Shared album art: one element that glides between the two views */
+.art {
+  position: absolute; left: 0; top: 0;
+  width: 300px; height: 300px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #282828;
+  transform-origin: 0 0;
+  box-shadow: 0 28px 60px -16px rgba(0,0,0,0.75);
+  transition: transform 0.95s var(--ease-out);
+  z-index: 5;
+}
+.art img { width: 100%; height: 100%; display: block; }
+/* --a1y / --a2y put the art's bottom on the baseline of the time digits; --a3y places the
+   no-lyrics stack (art over title) in the left column. All set by alignArt. */
+.screen[data-view="artist"] .art { transform: translate(48px, var(--a1y, 532px)) scale(0.5867); }
+.screen[data-view="lyrics"] .art { transform: translate(760px, var(--a2y, 504px)) scale(0.7733); }
+.port .screen[data-view="artist"] .art { transform: translate(48px, var(--a1y, 788px)) scale(0.5867); }
+.port .screen[data-view="lyrics"] .art { transform: translate(476px, var(--a2y, 732px)) scale(0.8667); }
+.screen[data-view="lyrics"][data-lyrics="none"] .art { transform: translate(56px, var(--a3y, 150px)) scale(1); }
+
+/* Text */
+.title {
+  margin: 0;
+  font-family: var(--title);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.02;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  padding-bottom: 0.06em;
+}
+.artist-name { margin: 0; color: rgba(255,255,255,0.7); font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* View 1 text */
+.info-artist {
+  position: absolute; left: 252px; right: 48px; bottom: 36px; min-height: 188px;
+  display: flex; flex-direction: column; justify-content: flex-end; gap: 8px;
+  transition: opacity 0.5s ease, transform 0.7s var(--ease-out);
+}
+.screen[data-view="lyrics"] .info-artist { opacity: 0; transform: translateY(14px); pointer-events: none; }
+.info-artist .title { font-size: 58px; }
+.port .info-artist .title { font-size: 48px; }
+.info-artist .artist-name { font-size: 24px; }
+
+/* Spotify progress bar: white fill on a 30% white track, white knob, times underneath */
+.progress { margin-top: 14px; }
+.bar { position: relative; height: 4px; }
+.track { position: absolute; inset: 0; border-radius: 2px; background: rgba(255,255,255,0.3); overflow: hidden; }
+.fill { position: absolute; inset: 0; border-radius: 2px; background: #fff; transform: translateX(-100%); transition: transform 0.25s linear; }
+.knob-rail { position: absolute; inset: 0; transform: translateX(-100%); transition: transform 0.25s linear; pointer-events: none; }
+.knob { position: absolute; right: -6px; top: 50%; width: 12px; height: 12px; margin-top: -6px; border-radius: 50%; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.4); }
+.times { display: flex; justify-content: space-between; align-items: baseline; margin-top: 8px; font-variant-numeric: tabular-nums; color: rgba(255,255,255,0.7); }
+.times .bl { width: 0; height: 0; flex: none; }
+.lastplayed .bl { display: inline-block; width: 0; height: 0; vertical-align: baseline; }
+.info-artist .times { font-size: 15px; }
+.lastplayed { display: none; margin: 12px 0 0; color: rgba(255,255,255,0.7); }
+.info-artist .lastplayed { font-size: 19px; }
+.screen[data-playback="stopped"] .progress { display: none; }
+.screen[data-playback="stopped"] .lastplayed { display: block; }
+
+/* View 2 text */
+.info-lyrics {
+  position: absolute; left: 56px; bottom: 34px; width: 496px;
+  display: flex; flex-direction: column; gap: 4px;
+  transition: opacity 0.5s ease;
+}
+.screen[data-view="artist"] .info-lyrics,
+.screen[data-view="artist"] .lyrics { opacity: 0; pointer-events: none; }
+.info-lyrics .title { font-size: 28px; -webkit-line-clamp: 1; }
+.info-lyrics .artist-name { font-size: 18px; }
+.info-lyrics .progress { margin-top: 12px; }
+.info-lyrics .bar { height: 3px; }
+.info-lyrics .knob { width: 10px; height: 10px; margin-top: -5px; right: -5px; }
+.info-lyrics .times { font-size: 13px; margin-top: 6px; }
+.info-lyrics .lastplayed { font-size: 16px; }
+.screen[data-canvas="off"] .info-lyrics { width: 664px; }
+.port .info-lyrics { width: 388px; bottom: 40px; }
+.screen[data-lyrics="none"] .info-lyrics { bottom: auto; top: var(--ilt, 478px); gap: 8px; }
+.screen[data-lyrics="none"] .info-lyrics .title { font-size: 46px; -webkit-line-clamp: 2; }
+.screen[data-lyrics="none"] .info-lyrics .artist-name { font-size: 22px; }
+.port .screen[data-lyrics="none"] .info-lyrics { width: 656px; }
+
+/* Lyrics, coloured the way Spotify colours them: upcoming lines in the dark lyric
+   text colour, the current line in white, sung lines white but softer */
+.lyrics {
+  position: absolute; left: 56px; top: 0; width: 496px; bottom: 170px;
+  overflow: hidden;
+  contain: layout paint;
+  transition: opacity 0.5s ease;
+}
+.screen[data-canvas="off"] .lyrics { width: 664px; }
+/* Synced lyrics fade towards the top and bottom line by line (fadeLines). Unsynced text
+   scrolls slowly, so a mask is fine there. */
+.lyrics[data-mode="plain"], .lyrics[data-mode="still"] {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 12%, #000 84%, transparent 100%);
+          mask-image: linear-gradient(to bottom, transparent 0, #000 12%, #000 84%, transparent 100%);
+}
+.port .lyrics { width: 656px; bottom: 336px; }
+.screen[data-lyrics="none"] .lyrics { display: none; }
+.lines { position: relative; transition: transform 0.6s var(--ease-out); will-change: transform; -webkit-backface-visibility: hidden; backface-visibility: hidden; }
+.lines.instant { transition: none; }
+.line {
+  margin: 0 0 20px;
+  font-family: var(--title);
+  font-size: 38px;
+  line-height: 1.16;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: rgb(var(--ly-text-rgb));
+}
+.port .line { font-size: 42px; }
+.line.past { color: rgba(var(--ly-hi-rgb), 0.62); }
+.line.current { color: rgb(var(--ly-hi-rgb)); }
+.line.gap { height: 6px; margin: 0 0 20px; }
+.lyrics[data-mode="plain"] .lines { transition: transform 1s linear; }
+.lyrics[data-mode="plain"] .line,
+.lyrics[data-mode="still"] .line { font-size: 30px; margin-bottom: 12px; color: rgb(var(--ly-hi-rgb)); }
+.port .lyrics[data-mode="plain"] .line { font-size: 33px; }
+.lyrics[data-mode="still"] .line { color: rgba(var(--ly-hi-rgb), 0.7); }
+.lyrics[data-mode="plain"] .line.gap,
+.lyrics[data-mode="still"] .line.gap { height: 0; margin: 0 0 16px; }
+
+/* ---------- Review controls ---------- */
+.below { display: grid; gap: 14px; justify-items: center; }
+.actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px 18px; }
+.start {
+  appearance: none; border: 0; cursor: pointer;
+  padding: 14px 30px; border-radius: 999px;
+  background: var(--green); color: #000;
+  font-family: var(--ui); font-weight: 700; font-size: 16px; line-height: 1;
+  transition: transform 0.12s ease, background 0.2s ease;
+}
+.start:hover { background: #3be477; transform: scale(1.03); }
+.start:active { transform: scale(0.98); }
+.start:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+.hint { margin: 0; color: var(--ink-2); text-align: center; }
+.source { margin: 0; color: var(--ink-2); font-size: 13px; text-align: center; max-width: 80ch; }
+.controls {
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 14px 22px;
+  padding: 18px 20px;
+  border-radius: 12px;
+  background: var(--panel);
+}
+.group { border: 0; margin: 0; padding: 0; display: grid; gap: 6px; min-width: 0; }
+.group legend { padding: 0; margin-bottom: 6px; font-size: 13px; color: var(--ink-2); }
+.seg { display: flex; border-radius: 999px; background: #121212; padding: 3px; }
+.seg label { position: relative; }
+.seg input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.seg input:disabled { cursor: not-allowed; }
+.seg span { display: block; padding: 9px 15px; border-radius: 999px; font-size: 14px; font-weight: 700; line-height: 1.2; white-space: nowrap; color: var(--ink-2); transition: background 0.2s ease, color 0.2s ease; }
+.seg input:checked + span { background: #fff; color: #000; }
+.seg input:disabled + span { opacity: 0.35; }
+.seg input:focus-visible + span { box-shadow: 0 0 0 2px var(--green); }
+.seg label:hover input:not(:checked):not(:disabled) + span { color: #fff; }
+
+[hidden] { display: none !important; }
+
+/* ---------- Live: the screen alone, filling the window ---------- */
+body.live { background: #000; padding: 0; overflow: hidden; }
+.live .intro, .live .below { display: none; }
+.live .stage-wrap { position: fixed; inset: 0; align-items: center; }
+.live .device { --b: 0px; padding: 0; border-radius: 0; background: none; box-shadow: none; }
+.live .screen { border-radius: 0; }
+.notice {
+  position: absolute; inset: 0; z-index: 8;
+  display: grid; place-items: center; padding: 0 140px;
+  background: var(--ground); color: rgba(255,255,255,0.72);
+  font-size: 22px; line-height: 1.4; text-align: center;
+}
+.notice p { margin: 0; max-width: 30ch; }
+
+/* ---------- Settings: an invisible strip on the right edge; pull it left to bring out the pane ---------- */
+.pull {
+  position: absolute; right: 0; top: 0; bottom: 0; z-index: 20;
+  width: 28px;
+  border: 0; padding: 0; background: none; cursor: grab;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.pull:focus { outline: none; }
+.pull:focus-visible { box-shadow: inset -3px 0 0 rgba(255,255,255,0.6); }
+.pane.dragging { transition: none; }
+.pane {
+  position: absolute; top: 0; right: 0; bottom: 0; z-index: 30;
+  width: 320px;
+  padding: 22px 22px 22px 24px;
+  box-sizing: border-box;
+  display: flex; flex-direction: column; gap: 18px;
+  background: rgba(18,18,18,0.9);
+  color: #fff;
+  font-family: var(--ui);
+  cursor: default;
+  transform: translateX(105%);
+  transition: transform 0.38s var(--ease-out);
+}
+/* The shadow only while the pane is out: closed, it would darken the screen's right edge */
+.pane.open, .pane.dragging { box-shadow: -24px 0 60px rgba(0,0,0,0.45); }
+.pane.open {
+  transform: none;
+  -webkit-backdrop-filter: blur(24px) saturate(1.2);
+          backdrop-filter: blur(24px) saturate(1.2);
+}
+.pane.signing { width: 470px; }
+.pane.signing .acct, .pane.signing .opts { display: none; }
+.opts { display: grid; gap: 16px; }
+.opts .opt { border: 0; margin: 0; padding: 0; min-width: 0; }
+.opts legend { padding: 0; margin-bottom: 8px; font-size: 13px; color: #b3b3b3; }
+.pane .seg { display: inline-flex; background: rgba(255,255,255,0.08); }
+.pane-head { display: flex; align-items: center; justify-content: space-between; }
+.pane-head h2 { margin: 0; font-family: var(--title); font-weight: 700; font-size: 22px; }
+.icon-btn {
+  width: 36px; height: 36px; border: 0; border-radius: 50%; padding: 0;
+  display: grid; place-items: center; cursor: pointer;
+  background: rgba(255,255,255,0.08); color: #fff;
+}
+.icon-btn:hover { background: rgba(255,255,255,0.16); }
+.icon-btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.icon-btn svg { width: 16px; height: 16px; }
+.acct { display: grid; gap: 4px; }
+.acct-label { font-size: 13px; color: #b3b3b3; }
+.acct-state { margin: 0; font-size: 17px; font-weight: 700; }
+.acct-note { margin: 0; font-size: 13px; color: #b3b3b3; line-height: 1.45; }
+.pane-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.pill {
+  appearance: none; cursor: pointer; border-radius: 999px;
+  padding: 11px 22px; font-family: var(--ui); font-weight: 700; font-size: 14px; line-height: 1;
+  border: 1px solid #7c7c7c; background: transparent; color: #fff;
+  transition: transform 0.12s ease, border-color 0.2s ease, background 0.2s ease;
+}
+.pill:hover { border-color: #fff; transform: scale(1.03); }
+.pill:active { transform: scale(0.98); }
+.pill:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.pill.primary { border-color: var(--green); background: var(--green); color: #000; }
+.pill.primary:hover { background: #3be477; border-color: #3be477; }
+.pill:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+.remote { display: flex; flex-direction: column; gap: 10px; min-height: 0; flex: 1; }
+.remote-view {
+  position: relative; flex: 1; min-height: 0;
+  display: flex; justify-content: center; align-items: flex-start;
+}
+.remote-view img {
+  max-width: 100%; max-height: 100%;
+  aspect-ratio: 400 / 720;
+  border-radius: 10px; background: #000;
+  touch-action: none; -webkit-user-select: none; user-select: none;
+  cursor: pointer;
+}
+.remote-wait {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  color: #b3b3b3; font-size: 14px; pointer-events: none;
+}
+.type-row label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.type-row input {
+  width: 100%; box-sizing: border-box;
+  padding: 11px 14px; border-radius: 6px;
+  border: 1px solid #7c7c7c; background: #121212; color: #fff;
+  font-family: var(--ui); font-size: 16px;
+}
+.type-row input:focus { outline: none; border-color: #fff; }
+.port .pane.signing { width: 470px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pane { transition-duration: 0.01s !important; }
+  .banner { animation: none; }
+  .art, .lines, .layer, .info-artist, .info-lyrics, .lyrics, .fill, .knob-rail { transition-duration: 0.01s !important; }
+}
+</style>
+
+<main class="page">
+  <header class="intro">
+    <h1>Air 2 Now Playing</h1>
+    <p>The wall display at the iPad's real size. Press Start song at the moment you press play in Spotify, and the progress bar and lyrics run in time with it.</p>
+  </header>
+
+
+  <!-- Keep-awake: iOS sleeps the display ~8.5 min after the last input even with
+       Auto-Lock off, and media playback is the one lever a page has against it. A
+       tiny looping muted video (bottom-left, effectively invisible, never in a
+       transformed ancestor) plays exactly while playback is "playing". -->
+  <video id="keepawake" src="media/sample/canvas.mp4" muted playsinline loop preload="auto"
+         style="position:fixed;left:0;bottom:0;width:2px;height:2px;opacity:.02;pointer-events:none"></video>
+  <div class="stage-wrap">
+    <div class="stage" id="stage">
+      <div class="device" id="device">
+        <div class="screen" id="screen" role="button" tabindex="0" aria-label="Switch between the artist view and the lyrics view"
+             data-view="artist" data-playback="playing" data-lyrics="synced" data-canvas="on">
+
+          <div class="layer layer-artist" aria-hidden="true">
+            <img class="banner" id="banner" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="">
+            <div class="shade-artist"></div>
+          </div>
+
+          <div class="layer layer-lyrics" aria-hidden="true">
+            <div class="aura"><img id="auraA" alt=""><img id="auraB" alt=""></div>
+            <video class="canvas-video" id="video" muted playsinline loop preload="auto"></video>
+            <div class="shade-over"></div>
+          </div>
+
+          <div class="info-artist">
+            <p class="title" data-el="title"></p>
+            <p class="artist-name" data-el="artists"></p>
+            <div class="progress">
+              <div class="bar"><div class="track"><div class="fill"></div></div><div class="knob-rail"><div class="knob"></div></div></div>
+              <div class="times"><span data-el="elapsed">0:00</span><i class="bl" aria-hidden="true"></i><span data-el="remain">-0:00</span></div>
+            </div>
+            <p class="lastplayed"><span data-el="lastplayed">Last played 18 minutes ago</span><i class="bl" aria-hidden="true"></i></p>
+          </div>
+
+          <div class="lyrics" id="lyrics" data-mode="synced"><div class="lines" id="lines"></div></div>
+
+          <div class="info-lyrics">
+            <p class="title" data-el="title"></p>
+            <p class="artist-name" data-el="artists"></p>
+            <div class="progress">
+              <div class="bar"><div class="track"><div class="fill"></div></div><div class="knob-rail"><div class="knob"></div></div></div>
+              <div class="times"><span data-el="elapsed">0:00</span><i class="bl" aria-hidden="true"></i><span data-el="remain">-0:00</span></div>
+            </div>
+            <p class="lastplayed"><span data-el="lastplayed">Last played 18 minutes ago</span><i class="bl" aria-hidden="true"></i></p>
+          </div>
+
+          <div class="art"><img id="albumArt" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt=""></div>
+          <div class="notice" id="notice" hidden><p id="noticeText"></p></div>
+          <button type="button" class="pull" id="pull" aria-label="Settings: pull left from the edge, or press Enter" aria-expanded="false" aria-controls="pane"></button>
+          <aside class="pane" id="pane" aria-label="Settings" aria-hidden="true">
+            <div class="pane-head">
+              <h2>Settings</h2>
+              <button type="button" class="icon-btn" id="paneClose" aria-label="Close settings">
+                <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none"/></svg>
+              </button>
+            </div>
+            <div class="opts" id="opts">
+              <fieldset class="opt"><legend>View</legend><div class="seg">
+                <label><input type="radio" name="pv" value="artist"><span>Artist</span></label>
+                <label><input type="radio" name="pv" value="lyrics"><span>Lyrics</span></label>
+              </div></fieldset>
+              <fieldset class="opt"><legend>Canvas</legend><div class="seg">
+                <label><input type="radio" name="pc" value="on"><span>Show</span></label>
+                <label><input type="radio" name="pc" value="off"><span>Hide</span></label>
+              </div></fieldset>
+            </div>
+            <div class="acct" id="acct">
+              <span class="acct-label">Spotify</span>
+              <p class="acct-state" id="acctState">Checking</p>
+              <p class="acct-note" id="acctNote"></p>
+            </div>
+            <div class="pane-actions" id="paneActions">
+              <button type="button" class="pill primary" id="signIn">Sign in to Spotify</button>
+              <button type="button" class="pill" id="signOut" hidden>Sign out</button>
+            </div>
+            <div class="remote" id="remote" hidden>
+              <div class="remote-view">
+                <img id="remoteImg" alt="Spotify sign-in page, running on the server" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
+                <div class="remote-wait" id="remoteWait">Opening Spotify</div>
+              </div>
+              <div class="type-row">
+                <label for="remoteType">Type into the box you tapped on the page above</label>
+                <input id="remoteType" type="password" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go" placeholder="Tap a box above, then type here">
+              </div>
+              <div class="pane-actions">
+                <button type="button" class="pill" id="remoteBack">Back</button>
+                <button type="button" class="pill" id="remoteCancel">Cancel</button>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="below">
+    <div class="actions">
+      <button type="button" class="start" id="start">Start song</button>
+      <p class="hint">Tap the screen to switch views, the same as on the iPad.</p>
+    </div>
+    <p class="source" id="source">Loading the song.</p>
+
+    <form class="controls" id="controls" aria-label="Mockup states">
+      <fieldset class="group"><legend>View</legend><div class="seg">
+        <label><input type="radio" name="view" id="view-artist" value="artist" checked><span>Artist</span></label>
+        <label><input type="radio" name="view" id="view-lyrics" value="lyrics"><span>Lyrics</span></label>
+      </div></fieldset>
+      <fieldset class="group"><legend>Orientation</legend><div class="seg">
+        <label><input type="radio" name="orient" id="orient-land" value="land" checked><span>Landscape</span></label>
+        <label><input type="radio" name="orient" id="orient-port" value="port"><span>Portrait</span></label>
+      </div></fieldset>
+      <fieldset class="group"><legend>Spotify</legend><div class="seg">
+        <label><input type="radio" name="playback" id="pb-playing" value="playing" checked><span>Playing</span></label>
+        <label><input type="radio" name="playback" id="pb-stopped" value="stopped"><span>Stopped</span></label>
+      </div></fieldset>
+      <fieldset class="group"><legend>Lyrics</legend><div class="seg">
+        <label><input type="radio" name="lyrics" id="ly-synced" value="synced" checked><span>Synced</span></label>
+        <label><input type="radio" name="lyrics" id="ly-plain" value="plain"><span>Not synced</span></label>
+        <label><input type="radio" name="lyrics" id="ly-none" value="none"><span>None</span></label>
+      </div></fieldset>
+      <fieldset class="group"><legend>Canvas</legend><div class="seg">
+        <label><input type="radio" name="canvas" id="cv-on" value="on" checked><span>Has canvas</span></label>
+        <label><input type="radio" name="canvas" id="cv-off" value="off"><span>No canvas</span></label>
+      </div></fieldset>
+    </form>
+  </div>
+</main>
+
+<script>
+(() => {
+  // Sample song for when no Now Playing server answers (the published mockup).
+  const SAMPLE = {
+    sample: true,
+    title: 'Halogen', artists: ['Teo Varga'], album: 'Late Rooms', duration: 204,
+    art: 'media/sample/album.jpg', banner: 'media/sample/artist.jpg',
+    canvas: 'media/sample/canvas.mp4', poster: 'media/sample/canvas-poster.jpg',
+    colors: null, start: 38,
+    lyrics: { mode: 'synced', lines: [
+      [14, "The kettle's on at half past two"], [18.5, 'The street lamps hum the way they do'],
+      [23, 'I count the night buses going by'], [27.5, 'Each one a little brighter than I'],
+      [32, "You said to call you when it's late"], [36, "So here I am, I couldn't wait"],
+      [40.5, 'Halogen, halogen'], [44, 'Burning on the corner again'], [48, 'Every window turning gold'],
+      [52, 'Every promise I was sold'], [56, 'Halogen, halogen'], [59.5, 'Light me up and let me in'], [64, ''],
+      [72, 'Your coat is hanging by the door'], [76.5, "A shape I don't remember wearing before"],
+      [81, 'The radio plays something slow'], [85.5, 'A song that only strangers know'],
+      [90, "You said to call you when it's late"], [94, "So here I am, I couldn't wait"],
+      [98.5, 'Halogen, halogen'], [102, 'Burning on the corner again'], [106, 'Every window turning gold'],
+      [110, 'Every promise I was sold'], [114, 'Halogen, halogen'], [117.5, 'Light me up and let me in'], [122, ''],
+      [134, 'Oh, the night is long but the light is longer'], [140, 'And every hour I hold on, I get stronger'],
+      [146, 'Oh, the night is long'], [151, '(The light is longer)'], [156, ''],
+      [160, 'Halogen, halogen'], [163.5, 'Burning on the corner again'], [167.5, 'Every window turning gold'],
+      [171.5, 'Every story left untold'], [175.5, 'Halogen, halogen'], [179, 'Light me up and let me in'],
+      [184, 'Light me up and let me in'], [190, ''],
+    ] },
+  };
+
+  const $ = (s, r = document) => r.querySelector(s);
+  const screen = $('#screen'), device = $('#device'), stage = $('#stage');
+  const video = $('#video'), keepAwake = $('#keepawake');
+  const lyricsEl = $('#lyrics'), linesEl = $('#lines'), albumArt = $('#albumArt'), banner = $('#banner');
+  const fills = [...screen.querySelectorAll('.fill')], rails = [...screen.querySelectorAll('.knob-rail')];
+  const elapsedEls = [...screen.querySelectorAll('[data-el="elapsed"]')];
+  const remainEls = [...screen.querySelectorAll('[data-el="remain"]')];
+  const form = $('#controls'), sourceEl = $('#source');
+
+  const state = { view: 'artist', orient: 'land', playback: 'playing', lyrics: 'synced', canvas: 'on' };
+  let song = null, LINES = [], DURATION = 1;
+  let pos = 0, lastTick = performance.now(), cur = -2, tops = [], shownSecond = -1, lineEls = [];
+
+  const fmt = (s) => { s = Math.max(0, Math.floor(s)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+  const setRGB = (name, rgb) => document.documentElement.style.setProperty(name, rgb.join(', '));
+
+  function lineIndex(t) {
+    let i = -1;
+    for (let k = 0; k < LINES.length; k++) { if (LINES[k][0] <= t) i = k; else break; }
+    return i;
+  }
+  let heights = [];
+  function measure() { tops = lineEls.map((el) => el.offsetTop); heights = lineEls.map((el) => el.offsetHeight); }
+  // Fade synced lines near the top and bottom edges, for where they will sit after the
+  // scroll. Set once per line change, so nothing repaints during the scroll itself.
+  function fadeLines(y, vpH) {
+    const synced = lyricsEl.dataset.mode === 'synced';
+    lineEls.forEach((el, k) => {
+      let o = 1;
+      if (synced) {
+        const c = tops[k] + heights[k] / 2 + y;
+        o = Math.max(0, Math.min(1, c / 90, (vpH - c) / 130));
+        o = Math.round(o * 10) / 10;
+      }
+      const v = o === 1 ? '' : String(o);
+      if (el.style.opacity !== v) el.style.opacity = v;
+    });
+  }
+  function lyricsMode() {
+    if (state.playback === 'stopped') return 'still';
+    return state.lyrics === 'plain' ? 'plain' : 'synced';
+  }
+
+  function placeLines(instant) {
+    const vpH = lyricsEl.clientHeight;
+    const mode = lyricsEl.dataset.mode;
+    let y;
+    if (mode === 'synced') {
+      y = Math.round(vpH * 0.36 - (tops[Math.max(0, cur)] || 0));
+    } else if (mode === 'plain') {
+      y = Math.round(vpH * 0.14 - (pos / DURATION) * Math.max(0, linesEl.scrollHeight - vpH * 0.66));
+    } else {
+      y = Math.round(vpH * 0.14);
+    }
+    fadeLines(y, vpH);
+    if (instant) linesEl.classList.add('instant');
+    linesEl.style.transform = 'translate3d(0,' + y + 'px,0)';
+    if (instant) { void linesEl.offsetHeight; linesEl.classList.remove('instant'); }
+  }
+
+  function markLines() {
+    const synced = lyricsEl.dataset.mode === 'synced';
+    lineEls.forEach((el, k) => {
+      el.classList.toggle('current', synced && k === cur);
+      el.classList.toggle('past', synced && k < cur);
+    });
+  }
+
+  function render(force) {
+    const pct = Math.min(1, pos / DURATION) * 100;
+    const tf = 'translateX(' + (pct - 100).toFixed(3) + '%)';
+    fills.forEach((f) => { f.style.transform = tf; });
+    rails.forEach((r) => { r.style.transform = tf; });
+    const sec = Math.floor(pos);
+    if (sec !== shownSecond || force) {
+      shownSecond = sec;
+      elapsedEls.forEach((e) => { e.textContent = fmt(pos); });
+      remainEls.forEach((e) => { e.textContent = '-' + fmt(DURATION - pos); });
+    }
+    const i = lineIndex(pos);
+    if (i !== cur || force) {
+      cur = i;
+      markLines();
+      if (lyricsEl.dataset.mode === 'synced') placeLines(false);
+    }
+    if (lyricsEl.dataset.mode === 'plain') placeLines(false);
+  }
+
+  function tick() {
+    const now = performance.now();
+    if (song && state.playback === 'playing') {
+      pos += (now - lastTick) / 1000;
+      if (pos >= DURATION) { pos = DURATION; if (!live) setPlayback('stopped'); }
+    }
+    lastTick = now;
+    if (song) render(false);
+  }
+
+  // Without Spotify's lyric colours (the sample song), take a background from the album art
+  function coloursFromArt() {
+    try {
+      const c = document.createElement('canvas'); c.width = c.height = 32;
+      const x = c.getContext('2d'); x.drawImage(albumArt, 0, 0, 32, 32);
+      const d = x.getImageData(0, 0, 32, 32).data;
+      let R = 0, G = 0, B = 0, Wt = 0, S = 0, n = 0;
+      for (let k = 0; k < d.length; k += 4) {
+        const r = d[k] / 255, g = d[k + 1] / 255, b = d[k + 2] / 255;
+        const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2;
+        const s = mx === mn ? 0 : (l > 0.5 ? (mx - mn) / (2 - mx - mn) : (mx - mn) / (mx + mn));
+        const w = Math.pow(s * (1 - Math.abs(l - 0.5) * 2), 2);
+        S += s * (1 - Math.abs(l - 0.5) * 2); n++;
+        R += r * w; G += g * w; B += b * w; Wt += w;
+      }
+      if (!Wt || S / n < 0.08) { setRGB('--ly-rgb', [83, 83, 83]); return; }
+      R /= Wt; G /= Wt; B /= Wt;
+      const mx = Math.max(R, G, B), mn = Math.min(R, G, B);
+      let h = 0;
+      if (mx !== mn) {
+        if (mx === R) h = ((G - B) / (mx - mn)) % 6; else if (mx === G) h = (B - R) / (mx - mn) + 2; else h = (R - G) / (mx - mn) + 4;
+        h = (h * 60 + 360) % 360;
+      }
+      setRGB('--ly-rgb', hslToRgb(h / 360, 0.62, 0.42));
+    } catch (e) { /* keep the default colour */ }
+  }
+  // Two tiny gradient images in the song's colours for the lyrics background
+  const auraA = $('#auraA'), auraB = $('#auraB');
+  function paletteFromArt() {
+    const out = [];
+    try {
+      const c = document.createElement('canvas'); c.width = c.height = 24;
+      const x = c.getContext('2d'); x.drawImage(albumArt, 0, 0, 24, 24);
+      const d = x.getImageData(0, 0, 24, 24).data;
+      const bins = {};
+      for (let k = 0; k < d.length; k += 4) {
+        const r = d[k], g = d[k + 1], b = d[k + 2];
+        const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 510;
+        const sat = mx === mn ? 0 : (mx - mn) / 255;
+        const w = sat * (1 - Math.abs(l - 0.5) * 1.6);
+        if (w < 0.12) continue;
+        let h = 0;
+        if (mx === r) h = ((g - b) / (mx - mn) + 6) % 6; else if (mx === g) h = (b - r) / (mx - mn) + 2; else h = (r - g) / (mx - mn) + 4;
+        const bin = Math.floor(h * 2) % 12;
+        const e = bins[bin] || (bins[bin] = { r: 0, g: 0, b: 0, w: 0 });
+        e.r += r * w; e.g += g * w; e.b += b * w; e.w += w;
+      }
+      Object.keys(bins).map((k) => bins[k]).sort((a, b) => b.w - a.w).slice(0, 3)
+        .forEach((e) => out.push([e.r / e.w, e.g / e.w, e.b / e.w]));
+    } catch (e) { /* art not readable: base colour only */ }
+    return out;
+  }
+  function drawAura() {
+    const base = getComputedStyle(document.documentElement).getPropertyValue('--ly-rgb').split(',').map(Number);
+    const mix = (c, t) => c.map((v, i) => Math.round(v * (1 - t) + base[i] * t));
+    const shade = (f) => base.map((v) => Math.max(0, Math.min(255, Math.round(v * f))));
+    let pal = paletteFromArt().map((c) => mix(c, 0.5));
+    if (!pal.length) pal = [shade(1.25), shade(0.7)];
+    const make = (spots) => {
+      const c = document.createElement('canvas'); c.width = 40; c.height = 30;
+      const x = c.getContext('2d');
+      x.fillStyle = 'rgb(' + base.join(',') + ')'; x.fillRect(0, 0, 40, 30);
+      spots.forEach(([px, py, r], i) => {
+        const col = pal[i % pal.length].join(',');
+        const g = x.createRadialGradient(px * 40, py * 30, 0, px * 40, py * 30, r * 40);
+        g.addColorStop(0, 'rgba(' + col + ',0.9)'); g.addColorStop(1, 'rgba(' + col + ',0)');
+        x.fillStyle = g; x.fillRect(0, 0, 40, 30);
+      });
+      return c.toDataURL('image/png');
+    };
+    try {
+      auraA.src = make([[0.2, 0.25, 0.5], [0.8, 0.3, 0.45], [0.4, 0.85, 0.5]]);
+      auraB.src = make([[0.75, 0.75, 0.5], [0.15, 0.7, 0.4], [0.6, 0.15, 0.45]]);
+    } catch (e) { /* no gradients: the flat colour stays */ }
+  }
+
+  function hslToRgb(h, s, l) {
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s, p = 2 * l - q;
+    const f = (t) => { t = (t + 1) % 1; if (t < 1 / 6) return p + (q - p) * 6 * t; if (t < 1 / 2) return q; if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6; return p; };
+    return [f(h + 1 / 3), f(h), f(h - 1 / 3)].map((v) => Math.round(v * 255));
+  }
+
+  function syncVideo() {
+    const want = song && song.canvas && state.view === 'lyrics' && state.canvas === 'on' && state.playback === 'playing';
+    if (want) { const p = video.play(); if (p && p.catch) p.catch(() => {}); } else video.pause();
+    if (state.playback === 'playing') {
+      const p = keepAwake.play(); if (p && p.catch) p.catch(() => {});
+    } else keepAwake.pause();
+  }
+
+  function fit() {
+    const port = state.orient === 'port';
+    const W = port ? 768 : 1024, H = port ? 1024 : 768, B = live ? 0 : 26;
+    // Live: fill the window exactly. The iPad's status bar leaves 1024x748, so take the
+    // height from the window instead of shrinking a 1024x768 screen into it (black bars).
+    if (live) {
+      const kw = window.innerWidth / W, h = window.innerHeight / kw;
+      if (Math.abs(h - H) / H < 0.1) {
+        device.style.setProperty('--w', W + 'px');
+        device.style.setProperty('--h', Math.round(h) + 'px');
+        device.style.transform = Math.abs(kw - 1) < 0.002 ? 'none' : 'scale(' + kw + ')';
+        stage.style.width = window.innerWidth + 'px';
+        stage.style.height = window.innerHeight + 'px';
+        return;
+      }
+    }
+    device.style.removeProperty('--w');
+    device.style.removeProperty('--h');
+    const dw = W + 2 * B, dh = H + 2 * B;
+    const availW = live ? window.innerWidth : stage.parentElement.clientWidth;
+    const availH = live ? window.innerHeight : Math.max(340, window.innerHeight * (port ? 0.86 : 0.8));
+    const k = live ? Math.min(availW / dw, availH / dh) : Math.min(availW / dw, availH / dh, 1);
+    // At 1:1 (the iPad full screen) use no transform at all, so Safari draws at full resolution.
+    device.style.transform = Math.abs(k - 1) < 0.002 ? 'none' : 'scale(' + k + ')';
+    stage.style.width = Math.floor(dw * k) + 'px';
+    stage.style.height = Math.floor(dh * k) + 'px';
+  }
+
+  function apply() {
+    device.classList.toggle('port', state.orient === 'port');
+    Object.assign(screen.dataset, { view: state.view, playback: state.playback, lyrics: state.lyrics, canvas: state.canvas });
+    lyricsEl.dataset.mode = lyricsMode();
+    fit();
+    syncVideo();
+    requestAnimationFrame(() => { measure(); markLines(); placeLines(true); alignArt(); if (song) render(true); });
+  }
+
+  // Put the bottom of the album art on the baseline of the time digits (or of
+  // "Last played" when nothing is playing). Layout offsets ignore transforms, so a view
+  // mid-transition still measures right.
+  function yIn(el) {
+    let y = 0;
+    while (el && el !== screen) { y += el.offsetTop; el = el.offsetParent; }
+    return el === screen ? y : null;
+  }
+  function alignArt() {
+    const port = state.orient === 'port';
+    const sel = state.playback === 'stopped' ? '.lastplayed .bl' : '.times .bl';
+    const y1 = yIn(screen.querySelector('.info-artist ' + sel));
+    if (y1 != null) screen.style.setProperty('--a1y', Math.round(y1 - 176) + 'px'); else screen.style.removeProperty('--a1y');
+    const y2 = state.lyrics === 'none' ? null : yIn(screen.querySelector('.info-lyrics ' + sel));
+    if (y2 != null) screen.style.setProperty('--a2y', Math.round(y2 - (port ? 260 : 232)) + 'px'); else screen.style.removeProperty('--a2y');
+    // No lyrics: art (300) over title, artist and progress, centred in the left column
+    if (state.lyrics === 'none') {
+      const info = screen.querySelector('.info-lyrics');
+      const top = Math.max(32, Math.round((screen.offsetHeight - (300 + 28 + info.offsetHeight)) / 2));
+      screen.style.setProperty('--a3y', top + 'px');
+      screen.style.setProperty('--ilt', (top + 328) + 'px');
+    }
+  }
+
+  function setRadio(name, value) { const el = form.querySelector('input[name="' + name + '"][value="' + value + '"]'); if (el) el.checked = true; }
+  function setView(v) { state.view = v; setRadio('view', v); rememberView(v); apply(); }
+  function setPlayback(v) { state.playback = v; setRadio('playback', v); lastTick = performance.now(); apply(); }
+
+  function loadSong(s) {
+    song = s;
+    DURATION = s.duration || 1;
+    LINES = (s.lyrics && s.lyrics.lines) || [];
+    document.querySelectorAll('[data-el="title"]').forEach((e) => { e.textContent = s.title; });
+    document.querySelectorAll('[data-el="artists"]').forEach((e) => { e.textContent = s.artists.join(', '); });
+    albumArt.alt = 'Album art for ' + (s.album || s.title);
+    if (!s.sample) albumArt.crossOrigin = 'anonymous';
+    albumArt.addEventListener('load', () => { if (song !== s) return; if (!s.colors) coloursFromArt(); drawAura(); }, { once: true });
+    albumArt.src = s.art;
+    banner.src = s.banner || s.art;
+    setRGB('--ly-text-rgb', s.colors ? s.colors.text : [0, 0, 0]);
+    setRGB('--ly-hi-rgb', s.colors ? s.colors.highlight : [255, 255, 255]);
+    if (s.colors) setRGB('--ly-rgb', s.colors.background);
+    if (s.canvas) {
+      if (s.poster) video.poster = s.poster; else video.removeAttribute('poster');
+      video.src = s.canvas;
+    } else if (video.getAttribute('src')) {
+      video.removeAttribute('src');
+      try { video.load(); } catch (e) { /* nothing loaded */ }
+    }
+    linesEl.textContent = '';
+    lineEls = LINES.map(([, text]) => {
+      const p = document.createElement('p');
+      p.className = text ? 'line' : 'line gap';
+      p.textContent = text;
+      linesEl.appendChild(p);
+      return p;
+    });
+    state.lyrics = s.lyrics && LINES.length ? s.lyrics.mode : 'none';
+    state.canvas = s.canvas && prefs.canvas !== 'off' ? 'on' : 'off';
+    setRadio('lyrics', state.lyrics);
+    setRadio('canvas', state.canvas);
+    form.querySelector('#cv-on').disabled = !s.canvas;
+    form.querySelector('#ly-synced').disabled = !(s.lyrics && s.lyrics.mode === 'synced');
+    form.querySelector('#ly-plain').disabled = !LINES.length;
+    pos = s.start || 0;
+    cur = -2;
+    lastTick = performance.now();
+
+    const bits = [];
+    if (s.sample) {
+      bits.push('Sample song: the artist, song and lyrics are made up, and the photo and video are stock stand-ins.');
+    } else {
+      bits.push(s.title + ' by ' + s.artists.join(', ') + ', every detail from Spotify.');
+      bits.push(s.lyrics ? (s.lyrics.mode === 'synced' ? 'Lyrics: Spotify, time-synced.' : 'Lyrics: Spotify, not synced.')
+        : (s.loggedIn ? 'Spotify has no lyrics for this song.' : 'Lyrics need the Spotify cookie.'));
+      bits.push(s.canvas ? 'Canvas: Spotify.' : (s.loggedIn ? 'This song has no canvas.' : 'Canvas needs the Spotify cookie.'));
+    }
+    sourceEl.textContent = bits.join(' ');
+    apply();
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { measure(); placeLines(true); alignArt(); });
+  }
+
+  // Song data: the Now Playing server when there is one, otherwise the sample
+  function fetchSong() {
+    const ctl = window.AbortController ? new AbortController() : null;
+    const timer = setTimeout(() => { if (ctl) ctl.abort(); }, 15000);
+    return fetch('api/song' + location.search, ctl ? { signal: ctl.signal } : {})
+      .then((r) => (r.ok ? r.json() : null))
+      .catch(() => null)
+      .then((d) => { clearTimeout(timer); return d && d.title ? d : null; });
+  }
+
+  $('#start').addEventListener('click', () => {
+    if (!song) return;
+    pos = 0; cur = -2;
+    try { video.currentTime = 0; } catch (e) { /* not loaded yet */ }
+    setPlayback('playing');
+    placeLines(true);
+    render(true);
+  });
+  const inSettings = (t) => t && t.closest && t.closest('.pane, .pull');
+  screen.addEventListener('click', (e) => {
+    if (inSettings(e.target)) return;
+    if (pane.classList.contains('open')) { openPane(false); return; }
+    setView(state.view === 'artist' ? 'lyrics' : 'artist');
+  });
+  screen.addEventListener('keydown', (e) => {
+    if (inSettings(e.target)) return;
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setView(state.view === 'artist' ? 'lyrics' : 'artist'); }
+  });
+
+  // ---------- Settings pane: Spotify sign-in through the server's own browser ----------
+  const pull = $('#pull'), pane = $('#pane'), remote = $('#remote'), remoteImg = $('#remoteImg');
+  const remoteWait = $('#remoteWait'), typeBox = $('#remoteType');
+  const acctState = $('#acctState'), acctNote = $('#acctNote'), signInBtn = $('#signIn'), signOutBtn = $('#signOut');
+  let server = null, polling = false, lastTyped = '', sendChain = Promise.resolve(), frameURL = null;
+
+  function post(path, body) {
+    return fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) })
+      .then((r) => r.json().catch(() => ({})).then((d) => { if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status)); return d; }));
+  }
+  function send(body) { sendChain = sendChain.then(() => post('api/signin/input', body)).catch(() => {}); return sendChain; }
+
+  function showStatus(s) {
+    server = s;
+    signOutBtn.hidden = true;
+    signInBtn.hidden = false;
+    signInBtn.disabled = false;
+    if (!s) {
+      acctState.textContent = 'No server';
+      acctNote.textContent = 'Sign-in runs on the Now Playing server. This copy of the page has no server behind it.';
+      signInBtn.disabled = true;
+      return;
+    }
+    signInBtn.textContent = 'Sign in to Spotify';
+    signInBtn.dataset.player = '';
+    if (s.signedIn && s.player === 'connected') {
+      acctState.textContent = 'Connected';
+      acctNote.textContent = 'The display follows what you play on Spotify. The server keeps the sign-in fresh by itself.';
+      signInBtn.hidden = true;
+      signOutBtn.hidden = false;
+    } else if (s.signedIn) {
+      acctState.textContent = 'Signed in';
+      acctNote.textContent = 'One more step: let the display see what you are playing. Spotify asks once.';
+      signInBtn.textContent = 'Allow';
+      signInBtn.dataset.player = '1';
+      signOutBtn.hidden = false;
+    } else {
+      acctState.textContent = 'Not signed in';
+      acctNote.textContent = s.signInAvailable
+        ? 'Sign in so the display can show lyrics and canvases. You sign in on a browser that runs on the server, shown here.'
+        : 'This server has no sign-in browser installed.';
+      signInBtn.disabled = !s.signInAvailable;
+    }
+  }
+  function refreshStatus() {
+    return fetch('api/status').then((r) => (r.ok ? r.json() : null)).catch(() => null).then(showStatus);
+  }
+
+  function openPane(open) {
+    pane.style.transform = '';
+    if (open) syncOpts();
+    pane.classList.toggle('open', open);
+    pane.setAttribute('aria-hidden', open ? 'false' : 'true');
+    pull.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (open) refreshStatus(); else if (polling) stopRemote(true);
+  }
+
+  function pollFrame() {
+    if (!polling) return;
+    fetch('api/signin/frame', { cache: 'no-store' }).then((r) => {
+      if (!r.ok) throw new Error('frame ' + r.status);
+      const done = r.headers.get('X-Signed-In') === '1';
+      return r.blob().then((b) => ({ b, done }));
+    }).then(({ b, done }) => {
+      if (frameURL) URL.revokeObjectURL(frameURL);
+      frameURL = URL.createObjectURL(b);
+      remoteImg.src = frameURL;
+      remoteWait.hidden = true;
+      if (done) {
+        acctState.textContent = 'Signed in';
+        acctNote.textContent = 'Got it. Loading your lyrics and canvas.';
+        stopRemote(false);
+        setTimeout(() => location.reload(), 1200);
+        return;
+      }
+      setTimeout(pollFrame, 200);
+    }).catch(() => { setTimeout(pollFrame, 1000); });
+  }
+
+  function startRemote() {
+    signInBtn.disabled = true;
+    acctNote.textContent = 'Opening Spotify on the server.';
+    post('api/signin/start', { player: signInBtn.dataset.player === '1' }).then(() => {
+      pane.classList.add('signing');
+      remote.hidden = false;
+      $('#paneActions').hidden = true;
+      remoteWait.hidden = false;
+      typeBox.value = ''; lastTyped = '';
+      polling = true;
+      pollFrame();
+    }).catch((e) => { acctNote.textContent = 'The sign-in browser did not start: ' + e.message; signInBtn.disabled = false; });
+  }
+  function stopRemote(cancel) {
+    polling = false;
+    pane.classList.remove('signing');
+    remote.hidden = true;
+    $('#paneActions').hidden = false;
+    if (cancel) post('api/signin/cancel').catch(() => {}).then(refreshStatus);
+  }
+
+  // Taps on the picture become clicks in the server's browser; a drag scrolls it
+  let down = null;
+  remoteImg.addEventListener('pointerdown', (e) => { down = { x: e.clientX, y: e.clientY }; e.preventDefault(); });
+  remoteImg.addEventListener('pointerup', (e) => {
+    if (!down) return;
+    const r = remoteImg.getBoundingClientRect();
+    const sx = 400 / r.width, sy = 720 / r.height;
+    const dy = e.clientY - down.y, dx = e.clientX - down.x;
+    if (Math.abs(dy) > 10 || Math.abs(dx) > 10) {
+      send({ type: 'scroll', dy: -dy * sy });
+    } else {
+      send({ type: 'click', x: (down.x - r.left) * sx, y: (down.y - r.top) * sy });
+      typeBox.value = ''; lastTyped = '';
+      setTimeout(() => { try { typeBox.focus(); } catch (err) { /* no focus */ } }, 50);
+    }
+    down = null;
+  });
+  remoteImg.addEventListener('wheel', (e) => { e.preventDefault(); send({ type: 'scroll', dy: e.deltaY }); }, { passive: false });
+
+  // Typing mirrors the box into the server's browser: added letters are inserted,
+  // removed ones become Backspace presses
+  typeBox.addEventListener('input', () => {
+    const now = typeBox.value;
+    if (now.indexOf(lastTyped) === 0) {
+      if (now.length > lastTyped.length) send({ type: 'text', text: now.slice(lastTyped.length) });
+    } else if (lastTyped.indexOf(now) === 0) {
+      for (let k = 0; k < lastTyped.length - now.length; k++) send({ type: 'key', key: 'Backspace' });
+    } else {
+      for (let k = 0; k < lastTyped.length; k++) send({ type: 'key', key: 'Backspace' });
+      if (now) send({ type: 'text', text: now });
+    }
+    lastTyped = now;
+  });
+  typeBox.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === 'Tab') {
+      e.preventDefault();
+      send({ type: 'key', key: e.key });
+      typeBox.value = ''; lastTyped = '';
+    }
+  });
+
+  // Pull from the right edge: the pane follows the finger and opens past a third of its width.
+  // A tap on the edge does nothing, so nothing gives the pane away.
+  let pullStart = null;
+  const screenScale = () => screen.getBoundingClientRect().width / screen.offsetWidth;
+  pull.addEventListener('pointerdown', (e) => {
+    pullStart = { x: e.clientX, w: pane.offsetWidth, k: screenScale(), moved: 0 };
+    try { pull.setPointerCapture(e.pointerId); } catch (err) { /* old browser */ }
+    e.preventDefault();
+  });
+  pull.addEventListener('pointermove', (e) => {
+    if (!pullStart) return;
+    const dx = Math.max(0, (pullStart.x - e.clientX) / pullStart.k);
+    pullStart.moved = dx;
+    if (dx < 6) return;
+    pane.classList.add('dragging');
+    pane.style.transform = 'translateX(' + Math.max(0, pullStart.w - dx) + 'px)';
+  });
+  const endPull = () => {
+    if (!pullStart) return;
+    const open = pullStart.moved > pullStart.w * 0.33;
+    pullStart = null;
+    pane.classList.remove('dragging');
+    pane.style.transform = '';
+    if (open) openPane(true);
+  };
+  pull.addEventListener('pointerup', endPull);
+  pull.addEventListener('pointercancel', endPull);
+  pull.addEventListener('click', (e) => e.stopPropagation());
+  pull.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openPane(!pane.classList.contains('open')); }
+  });
+  $('#paneClose').addEventListener('click', () => openPane(false));
+  signInBtn.addEventListener('click', startRemote);
+  signOutBtn.addEventListener('click', () => {
+    signOutBtn.disabled = true;
+    post('api/signout').then(showStatus).catch(() => {}).then(() => { signOutBtn.disabled = false; });
+  });
+  $('#remoteBack').addEventListener('click', () => send({ type: 'back' }));
+  $('#remoteCancel').addEventListener('click', () => stopRemote(true));
+  refreshStatus();
+  setInterval(() => { if (!polling) refreshStatus(); }, 60000);
+
+  // ---------- Display options in the pane, remembered on this device ----------
+  const prefs = (() => { try { return JSON.parse(localStorage.getItem('np.prefs')) || {}; } catch (e) { return {}; } })();
+  function savePrefs() { try { localStorage.setItem('np.prefs', JSON.stringify(prefs)); } catch (e) { /* storage off */ } }
+  function syncOpts() {
+    pane.querySelectorAll('input[name="pv"]').forEach((i) => { i.checked = i.value === state.view; });
+    pane.querySelectorAll('input[name="pc"]').forEach((i) => { i.checked = i.value === (prefs.canvas === 'off' ? 'off' : 'on'); });
+  }
+  function rememberView(v) { prefs.view = v; savePrefs(); syncOpts(); }
+  pane.addEventListener('change', (e) => {
+    const t = e.target;
+    if (t.name === 'pv') setView(t.value);
+    if (t.name === 'pc') {
+      prefs.canvas = t.value; savePrefs();
+      state.canvas = song && song.canvas && t.value !== 'off' ? 'on' : 'off';
+      setRadio('canvas', state.canvas);
+      apply();
+    }
+  });
+  state.view = prefs.view === 'lyrics' ? 'lyrics' : 'artist';
+  setRadio('view', state.view);
+  syncOpts();
+  form.addEventListener('change', (e) => {
+    const t = e.target;
+    if (!t.name) return;
+    state[t.name] = t.value;
+    if (t.name === 'playback') lastTick = performance.now();
+    apply();
+  });
+  form.addEventListener('submit', (e) => e.preventDefault());
+  window.addEventListener('resize', fit);
+  if (window.ResizeObserver) new ResizeObserver(fit).observe(stage.parentElement);
+
+  // ---------- Live: follow what is playing on Spotify ----------
+  let live = false, liveKey = null, loadingKey = null, clockOff = 0;
+  const noticeEl = $('#notice'), noticeText = $('#noticeText');
+  const lastPlayedEls = [...screen.querySelectorAll('[data-el="lastplayed"]')];
+
+  function ago(ms) {
+    const m = Math.round((Date.now() + clockOff - ms) / 60000);
+    if (m < 1) return 'Last played just now';
+    if (m < 60) return 'Last played ' + m + (m === 1 ? ' minute ago' : ' minutes ago');
+    const h = Math.round(m / 60);
+    if (h < 24) return 'Last played ' + h + (h === 1 ? ' hour ago' : ' hours ago');
+    const d = Math.round(h / 24);
+    return 'Last played ' + (d === 1 ? 'yesterday' : d + ' days ago');
+  }
+  function showNotice(text) { noticeEl.hidden = !text; if (text) noticeText.textContent = text; }
+  function setLivePlayback(v) { state.playback = v; lastTick = performance.now(); apply(); }
+
+  function applyNow(d) {
+    clockOff = d.server - Date.now();
+    const playback = d.state === 'playing' ? 'playing' : d.state === 'paused' ? 'paused' : 'stopped';
+    if (d.lastAt) lastPlayedEls.forEach((e) => { e.textContent = ago(d.lastAt); });
+    if (!d.track) {
+      showNotice(d.player === 'connected' ? 'Play something on Spotify and it shows up here.'
+        : d.player === 'signed_out' ? 'Pull from the right edge of the screen to sign in to Spotify.'
+        : d.player === 'needs_approval' ? 'Pull from the right edge of the screen and tap Allow, so this display can follow Spotify.'
+        : 'Connecting to Spotify.');
+      return;
+    }
+    const key = d.kind + ':' + d.track;
+    const target = () => d.progress + (d.state === 'playing' ? Math.max(0, (Date.now() + clockOff - d.fetched) / 1000) : 0);
+    if (key !== liveKey) {
+      if (loadingKey === key) return;
+      loadingKey = key;
+      const p = d.kind === 'episode' && d.song ? Promise.resolve(d.song)
+        : fetch('api/song?track=' + encodeURIComponent(d.track)).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+      p.then((s) => {
+        loadingKey = null;
+        if (!s || !s.title) return;
+        liveKey = key;
+        showNotice(null);
+        s.start = target();
+        state.playback = playback;
+        loadSong(s);
+      });
+      return;
+    }
+    showNotice(null);
+    if (state.playback !== playback) setLivePlayback(playback);
+    if (playback !== 'stopped') {
+      const t = target();
+      if (Math.abs(t - pos) > 1) { pos = t; cur = -2; placeLines(true); render(true); }
+      else pos += (t - pos) * 0.5;
+    }
+  }
+
+  function getNow() {
+    return fetch('api/now', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+  }
+  function pollNow() {
+    getNow().then((d) => {
+      if (d) applyNow(d);
+      setTimeout(pollNow, d && d.state === 'playing' ? 1500 : 3000);
+    });
+  }
+  function orientFromWindow() { return window.innerWidth >= window.innerHeight ? 'land' : 'port'; }
+  window.addEventListener('resize', () => {
+    if (live && orientFromWindow() !== state.orient) { state.orient = orientFromWindow(); apply(); }
+  });
+
+  apply();
+  setInterval(tick, 200);
+  // On the Now Playing server the page follows Spotify; anywhere else it is the mockup.
+  getNow().then((d) => {
+    if (d && 'player' in d) {
+      live = true;
+      document.body.classList.add('live');
+      state.orient = orientFromWindow();
+      apply();
+      applyNow(d);
+      setTimeout(pollNow, 1500);
+    } else {
+      fetchSong().then((x) => loadSong(x || SAMPLE));
+    }
+  });
+})();
+</script>
